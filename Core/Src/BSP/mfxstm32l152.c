@@ -19,7 +19,7 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
-#include "mfxstm32l152.h"
+#include "BSP/mfxstm32l152.h"
 
 /** @addtogroup BSP
   * @{
@@ -261,8 +261,8 @@ uint16_t mfxstm32l152_ReadID(uint16_t DeviceAddr)
   /* Initialize IO BUS layer */
   MFX_IO_Init();
 
-  id = MFX_IO_Read(DeviceAddr, MFXSTM32L152_REG_ADR_ID);
 
+  id = MFX_IO_Read(DeviceAddr, MFXSTM32L152_REG_ADR_ID);
   /* Return the device ID value */
   return (id);
 }

@@ -98,6 +98,8 @@ typedef struct
 #define CAMERA_COLOR_EFFECT_RED         0x03   /* Red effect                  */
 #define CAMERA_COLOR_EFFECT_ANTIQUE     0x04   /* Antique effect              */
 
+#define CAMERA_PF_RGB565                0U     /* Pixel Format RGB565         */
+
 /**
   * @}
   */

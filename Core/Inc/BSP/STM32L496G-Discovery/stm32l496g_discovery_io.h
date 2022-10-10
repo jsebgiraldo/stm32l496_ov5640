@@ -28,7 +28,7 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32l496g_discovery.h"
-#include "../Components/mfxstm32l152/mfxstm32l152.h"
+#include "BSP/mfxstm32l152.h"
 
 /** @addtogroup BSP
   * @{

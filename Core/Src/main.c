@@ -28,8 +28,8 @@
 
 #include "ov5640.h"
 #include "stm32l496g_discovery.h"
-#include "stm32l496g_discovery_lcd.h"
 #include "stm32l496g_discovery_io.h"
+#include "stm32l496g_discovery_camera.h"
 
 /* USER CODE END Includes */
 
@@ -93,6 +93,8 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
+OV5640_Object_t   OV5640Obj;
+
 HAL_StatusTypeDef hal_status = HAL_OK;
 
 #define XQUEUE_BUFFER_SIZE 20
@@ -145,18 +147,20 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 }
 
+
 /**
   * @brief  Frame Event callback.
   * @param  None
   * @retval None
   */
+/*
 void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
 	printf_dbg("HAL_DCMI_FrameEventCallback\r\n");
 	//jpeg_dcmi_frame_callback(&hdma_dcmi);
     __HAL_DCMI_ENABLE_IT(hdcmi,DCMI_IT_FRAME);
 }
-
+*/
 
 /* USER CODE END 0 */
 
@@ -199,27 +203,15 @@ int main(void)
 
   print_startup_msg();
 
-  /*##-3- Camera Initialization ############################*/
-	while(OV5640_Init())
-	{
-		printf_dbg("OV5640 error, please check !\r\n");
-		   // BSP_LCD_Clear(LCD_COLOR_WHITE);
-		   // HAL_Delay(200);
-		   HAL_Delay(300);
-		   Error_Handler();
-	}
-	printf_dbg("Camera was initialized!!\r\n");
+  /* Initialize the IO functionalities */
+  uint8_t ret;
+  ret = BSP_IO_Init();
+  if(ret == IO_OK)  printf_dbg("Expander OK\r\n");
 
-	OV5640_RGB565_Mode();
-	OV5640_Light_Mode(0);	   //set auto
-	OV5640_Color_Saturation(3); //default
-	OV5640_Brightness(4);	//default
-	OV5640_Contrast(3);     //default
-	OV5640_Sharpness(33);	//set auto
+  BSP_CAMERA_Init(RESOLUTION_R320x240);
+  if(ret == CAMERA_OK) printf_dbg("Camera OK\r\n");
 
-	rgb565_test();
-
-	//jpeg_test(QVGA_320_240);
+  //jpeg_test(QVGA_320_240);
 
   /* USER CODE END 2 */
 

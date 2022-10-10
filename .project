@@ -34,5 +34,9 @@
 			<name>copy_PARENT</name>
 			<value>$%7BPARENT-3-PROJECT_LOC%7D/STM32Cube/Repository/STM32Cube_FW_L4_V1.17.2</value>
 		</variable>
+		<variable>
+			<name>copy_PARENT1</name>
+			<value>$%7BPARENT-3-ECLIPSE_HOME%7D/Users/User31/STM32Cube/Repository/STM32Cube_FW_L4_V1.17.2</value>
+		</variable>
 	</variableList>
 </projectDescription>

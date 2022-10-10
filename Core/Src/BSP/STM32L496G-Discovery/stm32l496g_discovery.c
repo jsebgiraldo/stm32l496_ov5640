@@ -149,9 +149,7 @@ static I2C_HandleTypeDef hI2cCameraHandler = {0} ;
 #if defined(HAL_I2C_MODULE_ENABLED)
 static void               I2C2_MspInit(I2C_HandleTypeDef *hi2c);
 static void               I2C2_MspDeInit(I2C_HandleTypeDef *hi2c);
-static void               I2C2_WriteData(uint16_t Addr, uint16_t Reg, uint16_t RegSize, uint8_t Value);
 static HAL_StatusTypeDef  I2C2_WriteBuffer(uint16_t Addr, uint16_t Reg, uint16_t RegSize, uint8_t *pBuffer, uint16_t Length);
-static uint8_t            I2C2_ReadData(uint16_t Addr, uint16_t Reg, uint16_t RegSize);
 static HAL_StatusTypeDef  I2C2_ReadBuffer(uint16_t Addr, uint16_t Reg, uint16_t RegSize, uint8_t *pBuffer, uint16_t Length);
 static void               I2C2_Error(void);
 
@@ -205,7 +203,7 @@ void                      MFX_IO_ITConfig(void);
 void                      MFX_IO_EnableWakeupPin(void);
 void                      MFX_IO_Wakeup(void);
 void                      MFX_IO_Delay(uint32_t delay);
-void                      MFX_IO_Write(uint16_t addr, uint8_t reg, uint8_t value);
+
 uint8_t                   MFX_IO_Read(uint16_t addr, uint8_t reg);
 void                      MFX_IO_WriteMultiple(uint16_t Addr, uint8_t Reg, uint8_t *Buffer, uint16_t Length);
 uint16_t                  MFX_IO_ReadMultiple(uint16_t addr, uint8_t reg, uint8_t *buffer, uint16_t length);
@@ -663,7 +661,7 @@ static void I2C2_MspDeInit(I2C_HandleTypeDef *hi2c)
   * @param  Value: The target register value to be written
   * @retval None
   */
-static void I2C2_WriteData(uint16_t Addr, uint16_t Reg, uint16_t RegSize, uint8_t Value)
+void I2C2_WriteData(uint16_t Addr, uint16_t Reg, uint16_t RegSize, uint8_t Value)
 {
   HAL_StatusTypeDef status = HAL_OK;
 
@@ -719,7 +717,7 @@ static HAL_StatusTypeDef I2C2_WriteBuffer(uint16_t Addr, uint16_t Reg, uint16_t 
   * @param  RegSize: The target register size (can be 8BIT or 16BIT)
   * @retval read register value
   */
-static uint8_t I2C2_ReadData(uint16_t Addr, uint16_t Reg, uint16_t RegSize)
+uint8_t I2C2_ReadData(uint16_t Addr, uint16_t Reg, uint16_t RegSize)
 {
   HAL_StatusTypeDef status = HAL_OK;
   uint8_t value = 0x0;
