@@ -383,7 +383,6 @@ void jpeg_test(uint8_t jpg_size)
 
 	/* Start the Camera capture */
 	HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)jpeg_data_buf, jpeg_buf_size/4 );
-	jpeg_mode = 1;
 
 }
 
@@ -432,10 +431,6 @@ void rgb565_test(void)
         HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)jpeg_data_buf, 0x9600/4);
         //HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)LCD_GRAM_ADDRESS, 1);
 
-        while(1)
-        {
-
-        }
 }
 
 void jpeg_dcmi_frame_callback(DMA_HandleTypeDef *_hdma)

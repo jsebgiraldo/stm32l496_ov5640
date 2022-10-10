@@ -59,6 +59,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define JOY_DOWN_Pin GPIO_PIN_10
 #define JOY_DOWN_GPIO_Port GPIOI
+#define JOY_DOWN_EXTI_IRQn EXTI15_10_IRQn
 #define OV5640_PWDN_Pin GPIO_PIN_2
 #define OV5640_PWDN_GPIO_Port GPIOH
 #define PSRAM_NBL0_Pin GPIO_PIN_0
@@ -79,6 +80,7 @@ void Error_Handler(void);
 #define DCMI_D4_GPIO_Port GPIOH
 #define JOY_LEFT_Pin GPIO_PIN_9
 #define JOY_LEFT_GPIO_Port GPIOI
+#define JOY_LEFT_EXTI_IRQn EXTI9_5_IRQn
 #define DCMI_D7_Pin GPIO_PIN_7
 #define DCMI_D7_GPIO_Port GPIOI
 #define PSRAM_NBL1_Pin GPIO_PIN_1
@@ -111,6 +113,7 @@ void Error_Handler(void);
 #define ARD_D9_GPIO_Port GPIOH
 #define JOY_UP_Pin GPIO_PIN_8
 #define JOY_UP_GPIO_Port GPIOI
+#define JOY_UP_EXTI_IRQn EXTI9_5_IRQn
 #define SAI1_FSA_Pin GPIO_PIN_4
 #define SAI1_FSA_GPIO_Port GPIOE
 #define SAI1_SDB_Pin GPIO_PIN_3
@@ -139,6 +142,7 @@ void Error_Handler(void);
 #define USB_OTGFS_DP_GPIO_Port GPIOA
 #define JOY_SEL_Pin GPIO_PIN_13
 #define JOY_SEL_GPIO_Port GPIOC
+#define JOY_SEL_EXTI_IRQn EXTI15_10_IRQn
 #define SAI1_SDA_Pin GPIO_PIN_6
 #define SAI1_SDA_GPIO_Port GPIOE
 #define DCMI_D6_Pin GPIO_PIN_5
@@ -181,6 +185,7 @@ void Error_Handler(void);
 #define PSRAM_A5_GPIO_Port GPIOF
 #define CTP_INT_Pin GPIO_PIN_14
 #define CTP_INT_GPIO_Port GPIOG
+#define CTP_INT_EXTI_IRQn EXTI15_10_IRQn
 #define uSD_D1_Pin GPIO_PIN_9
 #define uSD_D1_GPIO_Port GPIOC
 #define uSD_D0_Pin GPIO_PIN_8
@@ -213,6 +218,7 @@ void Error_Handler(void);
 #define DF_CKOUT_GPIO_Port GPIOC
 #define MFX_IRQ_OUT_Pin GPIO_PIN_5
 #define MFX_IRQ_OUT_GPIO_Port GPIOC
+#define MFX_IRQ_OUT_EXTI_IRQn EXTI9_5_IRQn
 #define PSRAM_A10_Pin GPIO_PIN_0
 #define PSRAM_A10_GPIO_Port GPIOG
 #define D6_Pin GPIO_PIN_9
@@ -227,8 +233,6 @@ void Error_Handler(void);
 #define PSRAM_A13_GPIO_Port GPIOG
 #define PSRAM_A12_Pin GPIO_PIN_2
 #define PSRAM_A12_GPIO_Port GPIOG
-#define D15_Pin GPIO_PIN_10
-#define D15_GPIO_Port GPIOD
 #define ARD_A2_Pin GPIO_PIN_3
 #define ARD_A2_GPIO_Port GPIOC
 #define STMOD_PWM_Pin GPIO_PIN_0
@@ -277,6 +281,7 @@ void Error_Handler(void);
 #define QSPI_BK1_IO3_GPIO_Port GPIOA
 #define JOY_RIGHT_Pin GPIO_PIN_11
 #define JOY_RIGHT_GPIO_Port GPIOF
+#define JOY_RIGHT_EXTI_IRQn EXTI15_10_IRQn
 #define PSRAM_A7_Pin GPIO_PIN_13
 #define PSRAM_A7_GPIO_Port GPIOF
 #define D9_Pin GPIO_PIN_12

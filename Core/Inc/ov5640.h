@@ -52,6 +52,7 @@ uint8_t OV5640_Focus_Init(void);
 uint8_t OV5640_Auto_Focus(void);
 void rgb565_test(void);
 void jpeg_test(uint8_t jpg_size);
+void jpeg_dcmi_frame_callback(DMA_HandleTypeDef *_hdma);
 
 #endif
 
