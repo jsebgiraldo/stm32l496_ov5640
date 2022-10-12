@@ -418,7 +418,7 @@ int32_t OV5640_Init(OV5640_Object_t *pObj, uint32_t Resolution, uint32_t PixelFo
         {
           ret = OV5640_ERROR;
         }/* Set PixelClock, Href and VSync Polarity */
-        else if (OV5640_SetPolarities(pObj, OV5640_POLARITY_PCLK_HIGH, OV5640_POLARITY_HREF_HIGH,
+        else if (OV5640_SetPolarities(pObj, OV5640_POLARITY_PCLK_LOW, OV5640_POLARITY_HREF_HIGH,
                                       OV5640_POLARITY_VSYNC_HIGH) != OV5640_OK)
         {
           ret = OV5640_ERROR;
@@ -1073,27 +1073,15 @@ int32_t OV5640_SetLightMode(OV5640_Object_t *pObj, uint32_t LightMode)
   };
 
   tmp = 0x00;
-  ret = ov5640_write_reg(&pObj->Ctx, OV5640_AWB_MANUAL_CONTROL, &tmp, 1);
-  if (ret == OV5640_OK)
-  {
-    tmp = 0x46;
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_AWB_CTRL16, &tmp, 1);
-  }
+  I2C2_WriteData(OV5640_ADDR, OV5640_AWB_MANUAL_CONTROL, 2, tmp);
+  tmp = 0x46;
+  I2C2_WriteData(OV5640_ADDR, OV5640_AWB_CTRL16, 2, tmp);
+  tmp = 0xF8;
+  I2C2_WriteData(OV5640_ADDR, OV5640_AWB_CTRL17, 2, tmp);
+  tmp = 0x04;
+  I2C2_WriteData(OV5640_ADDR, OV5640_AWB_CTRL18, 2, tmp);
 
-  if (ret == OV5640_OK)
-  {
-    tmp = 0xF8;
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_AWB_CTRL17, &tmp, 1);
-  }
 
-  if (ret == OV5640_OK)
-  {
-    tmp = 0x04;
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_AWB_CTRL18, &tmp, 1);
-  }
-
-  if (ret == OV5640_OK)
-  {
     switch (LightMode)
     {
       case OV5640_LIGHT_SUNNY:
@@ -1152,18 +1140,15 @@ int32_t OV5640_SetLightMode(OV5640_Object_t *pObj, uint32_t LightMode)
       default :
         for (index = 0; index < (sizeof(OV5640_LightModeAuto) / 4U) ; index++)
         {
-          if (ret != OV5640_ERROR)
-          {
+
             tmp = (uint8_t)OV5640_LightModeAuto[index][1];
-            if (ov5640_write_reg(&pObj->Ctx, OV5640_LightModeAuto[index][0], &tmp, 1) != OV5640_OK)
-            {
-              ret = OV5640_ERROR;
-            }
-          }
+
+            I2C2_WriteData(OV5640_ADDR, OV5640_LightModeAuto[index][0], 2, tmp);
+
         }
         break;
     }
-  }
+
   return ret;
 }
 
@@ -1415,33 +1400,31 @@ int32_t OV5640_SetSaturation(OV5640_Object_t *pObj, int32_t Level)
   uint8_t tmp;
 
   tmp = 0xFF;
-  ret = ov5640_write_reg(&pObj->Ctx, OV5640_ISP_CONTROL01, &tmp, 1);
 
-  if (ret == OV5640_OK)
-  {
-    tmp = saturation_level[Level + 4];
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL3, &tmp, 1);
-  }
-  if (ret == OV5640_OK)
-  {
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL4, &tmp, 1);
-  }
-  if (ret == OV5640_OK)
-  {
-    tmp = 0x02;
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL0, &tmp, 1);
-  }
 
-  if (ret == OV5640_OK)
-  {
-    tmp = 0x41;
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL8, &tmp, 1);
-  }
+	I2C2_WriteData(OV5640_ADDR, OV5640_ISP_CONTROL01, 2, tmp);
 
-  if (ret != OV5640_OK)
-  {
+
+	tmp = saturation_level[Level + 4];
+	I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL3, 2, tmp);
+
+
+	I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL4, 2, tmp);
+
+
+	tmp = 0x02;
+	I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL0, 2, tmp);
+
+
+
+	tmp = 0x41;
+	I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL8, 2, tmp);
+
+
+
+
     ret = OV5640_ERROR;
-  }
+
 
   return ret;
 }

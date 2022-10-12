@@ -139,6 +139,25 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
   /* Get the DCMI handle structure */
   phdcmi = &hdcmi;
 
+  /* Initialize the IO functionalities */
+  BSP_IO_Init();
+
+
+  /*** Configures the DCMI to interface with the camera module ***/
+  /* DCMI configuration */
+  phdcmi->Init.CaptureRate      = DCMI_CR_ALL_FRAME;
+  phdcmi->Init.HSPolarity       = DCMI_HSPOLARITY_HIGH;
+  phdcmi->Init.SynchroMode      = DCMI_SYNCHRO_HARDWARE;
+  phdcmi->Init.VSPolarity       = DCMI_VSPOLARITY_HIGH;
+  phdcmi->Init.ExtendedDataMode = DCMI_EXTEND_DATA_8B;
+  phdcmi->Init.PCKPolarity      = DCMI_PCKPOLARITY_RISING;
+  phdcmi->Init.ByteSelectMode   = DCMI_BSM_ALL;
+  phdcmi->Init.LineSelectMode   = DCMI_LSM_ALL;
+  phdcmi->Instance              = DCMI;
+
+  /* Camera initialization */
+  BSP_CAMERA_MspInit(&hdcmi, NULL);
+
   uint32_t CameraId;
   if(OV5640_RegisterBusIO (&OV5640Obj, &IOCtx) != OV5640_OK)
   {
@@ -150,7 +169,8 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
     /* Initialize the camera driver structure */
     //camera_drv = &ov5640_drv;
     CameraHwAddress = CAMERA_I2C_ADDRESS;
-
+    /* DCMI Initialization */
+    HAL_DCMI_Init(phdcmi);
     /* Camera Module Initialization via I2C to the wanted 'Resolution' */
     if (Resolution == CAMERA_R320x240)
     {
@@ -182,6 +202,9 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
     }
 
     CameraCurrentResolution = Resolution;
+
+    OV5640_SetLightMode(&OV5640Obj, OV5640_LIGHT_AUTO);
+    OV5640_SetSaturation(&OV5640Obj, 2);
 
     /* Return CAMERA_OK status */
     status = CAMERA_OK;
@@ -548,10 +571,6 @@ __weak void BSP_CAMERA_VsyncEventCallback(void)
   * @param  hdcmi: pointer to the DCMI handle
   * @retval None
   */
-void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
-{
-  BSP_CAMERA_FrameEventCallback();
-}
 
 /**
   * @brief  Frame Event callback.

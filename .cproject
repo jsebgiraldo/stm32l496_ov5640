@@ -50,6 +50,7 @@
 									<listOptionValue builtIn="false" value="../Core/Inc/APIs"/>
 									<listOptionValue builtIn="false" value="../Core/Inc/BSP/STM32L496G-Discovery"/>
 									<listOptionValue builtIn="false" value="../Core/Inc/BSP/Components"/>
+									<listOptionValue builtIn="false" value="../Core/Inc/BSP"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1208619618" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>

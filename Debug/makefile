@@ -12,7 +12,7 @@ RM := rm -rf
 -include Drivers/STM32L4xx_HAL_Driver/Src/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/BSP/STM32L496G-Discovery/subdir.mk
--include Core/Src/BSP/subdir.mk
+-include Core/Src/BSP/Components/subdir.mk
 -include Core/Src/APIs/subdir.mk
 -include Core/Src/subdir.mk
 -include objects.mk

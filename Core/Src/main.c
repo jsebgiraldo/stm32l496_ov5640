@@ -30,6 +30,7 @@
 #include "stm32l496g_discovery.h"
 #include "stm32l496g_discovery_io.h"
 #include "stm32l496g_discovery_camera.h"
+#include "stm32l496g_discovery_lcd.h"
 
 /* USER CODE END Includes */
 
@@ -89,7 +90,12 @@ static const char *TAG = " [MAIN] ";
  DCMI_HandleTypeDef hdcmi;
 DMA_HandleTypeDef hdma_dcmi;
 
+DMA2D_HandleTypeDef hdma2d;
+
 UART_HandleTypeDef huart2;
+
+SRAM_HandleTypeDef hsram1;
+SRAM_HandleTypeDef hsram2;
 
 /* USER CODE BEGIN PV */
 
@@ -108,9 +114,8 @@ uint16_t pBuffer[240 * 240];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DCMI_Init(void);
-static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_DMA2D_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -118,6 +123,9 @@ static void MX_NVIC_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void Error_Handler(void);
+
 int _write(int file, char *ptr, int len) {
 	//CDC_Transmit_FS((uint8_t*) ptr, len);
 	return HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len,100);
@@ -147,20 +155,74 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 }
 
+/**
+  * @brief LCD image preparation.
+  * @note  Configure image position and size for Discovery STM32L496 LCD
+  *        and set LCD in pixel writing mode.
+  *        This API must be followed by LCD_Write() call.
+  * @param  x0: first pixel x position
+  * @param  y0: first pixel y position
+  * @param  xSize: image width (in pixels)
+  * @param  ySize: image height (in pixels)
+  * @retval None
+  */
+static void LCD_ImagePreparation(uint16_t x0, uint16_t y0, uint16_t xSize, uint16_t ySize)
+{
+  /* CASET: Column Address Set */
+  LCD_IO_WriteReg(ST7789H2_CASET);
+  /* Send commands */
+  LCD_IO_WriteData(0x00);
+  LCD_IO_WriteData(x0);
+  LCD_IO_WriteData(0x00);
+  LCD_IO_WriteData(x0 + xSize -1);
+  /* RASET: Row Address Set */
+  LCD_IO_WriteReg(ST7789H2_RASET);
+  /* Send commands */
+  LCD_IO_WriteData(0x00);
+  LCD_IO_WriteData(y0);
+  LCD_IO_WriteData(0x00);
+  LCD_IO_WriteData(y0 + ySize -1);
+
+  /* Prepare to write to LCD RAM */
+  LCD_IO_WriteReg(ST7789H2_WRITE_RAM);
+}
+
+/**
+  * @brief LCD image write-up.
+  * @note  Resort to DMA to feed image pixels to STM32L496 Discovery LCD.
+  *        LCD is configured in RGB565: one pixel is coded over 16 bits.
+  * @param  OrigAddress: Image address
+  * @param  DestAddress: LCD RAM address
+  * @param  TransferSize: image size (in pixels)
+  * @retval HAL status
+  */
+static HAL_StatusTypeDef LCD_Write(uint32_t OrigAddress, uint32_t DestAddress, uint32_t TransferSize)
+{
+  /* Force 1 pixel per line and width in pixels x height in pixels   */
+  /* as number of lines to align DMA2D transfer to LCD configuration */
+  if (HAL_OK != HAL_DMA2D_Start_IT(&hdma2d, OrigAddress, DestAddress, 1, TransferSize))
+  {
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}
 
 /**
   * @brief  Frame Event callback.
   * @param  None
   * @retval None
   */
-/*
+
 void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
-	printf_dbg("HAL_DCMI_FrameEventCallback\r\n");
-	//jpeg_dcmi_frame_callback(&hdma_dcmi);
-    __HAL_DCMI_ENABLE_IT(hdcmi,DCMI_IT_FRAME);
+	//printf_dbg("HAL_DCMI_FrameEventCallback\r\n");
+	LCD_ImagePreparation(0, 0, ST7789H2_LCD_PIXEL_WIDTH, ST7789H2_LCD_PIXEL_HEIGHT);
+
+	/* Write data (through DMA2D) */
+	hal_status = LCD_Write((uint32_t) (&pBuffer), (uint32_t)&(LCD_ADDR->REG), ST7789H2_LCD_PIXEL_WIDTH * ST7789H2_LCD_PIXEL_HEIGHT);
+	if(hal_status != HAL_OK)Error_Handler();
 }
-*/
 
 /* USER CODE END 0 */
 
@@ -192,9 +254,10 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DCMI_Init();
-  MX_DMA_Init();
+  //MX_DMA_Init();
   MX_USART2_UART_Init();
+  MX_DMA2D_Init();
+  //MX_FMC_Init();
 
   /* Initialize interrupts */
   MX_NVIC_Init();
@@ -208,8 +271,22 @@ int main(void)
   ret = BSP_IO_Init();
   if(ret == IO_OK)  printf_dbg("Expander OK\r\n");
 
+  /* LCD initialization */
+  ret =BSP_LCD_Init();
+  if(ret == LCD_OK) printf_dbg("LCD OK\r\n");
+
   BSP_CAMERA_Init(RESOLUTION_R320x240);
   if(ret == CAMERA_OK) printf_dbg("Camera OK\r\n");
+
+  /* Wait 1s to let auto-loops in the camera module converge and lead to correct exposure */
+    HAL_Delay(1000);
+
+    /*##-4- Camera Continuous capture start in QVGA resolution ############################*/
+    /* Disable unwanted HSYNC (IT_LINE)/VSYNC interrupts */
+    __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC);
+
+    hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS,  (uint32_t)pBuffer , (ST7789H2_LCD_PIXEL_WIDTH*ST7789H2_LCD_PIXEL_HEIGHT)/2 );
+    if(hal_status != HAL_OK)Error_Handler();
 
   //jpeg_test(QVGA_320_240);
 
@@ -318,9 +395,6 @@ static void MX_NVIC_Init(void)
   /* DCMI_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DCMI_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DCMI_IRQn);
-  /* DMA2_Channel6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Channel6_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Channel6_IRQn);
   /* EXTI15_10_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
@@ -333,39 +407,41 @@ static void MX_NVIC_Init(void)
 }
 
 /**
-  * @brief DCMI Initialization Function
+  * @brief DMA2D Initialization Function
   * @param None
   * @retval None
   */
-static void MX_DCMI_Init(void)
+static void MX_DMA2D_Init(void)
 {
 
-  /* USER CODE BEGIN DCMI_Init 0 */
+  /* USER CODE BEGIN DMA2D_Init 0 */
 
-  /* USER CODE END DCMI_Init 0 */
+  /* USER CODE END DMA2D_Init 0 */
 
-  /* USER CODE BEGIN DCMI_Init 1 */
+  /* USER CODE BEGIN DMA2D_Init 1 */
 
-  /* USER CODE END DCMI_Init 1 */
-  hdcmi.Instance = DCMI;
-  hdcmi.Init.SynchroMode = DCMI_SYNCHRO_HARDWARE;
-  hdcmi.Init.PCKPolarity = DCMI_PCKPOLARITY_RISING;
-  hdcmi.Init.VSPolarity = DCMI_VSPOLARITY_LOW;
-  hdcmi.Init.HSPolarity = DCMI_HSPOLARITY_LOW;
-  hdcmi.Init.CaptureRate = DCMI_CR_ALL_FRAME;
-  hdcmi.Init.ExtendedDataMode = DCMI_EXTEND_DATA_8B;
-  hdcmi.Init.JPEGMode = DCMI_JPEG_ENABLE;
-  hdcmi.Init.ByteSelectMode = DCMI_BSM_ALL;
-  hdcmi.Init.ByteSelectStart = DCMI_OEBS_ODD;
-  hdcmi.Init.LineSelectMode = DCMI_LSM_ALL;
-  hdcmi.Init.LineSelectStart = DCMI_OELS_ODD;
-  if (HAL_DCMI_Init(&hdcmi) != HAL_OK)
+  /* USER CODE END DMA2D_Init 1 */
+  hdma2d.Instance = DMA2D;
+  hdma2d.Init.Mode = DMA2D_M2M;
+  hdma2d.Init.ColorMode = DMA2D_OUTPUT_RGB565;
+  hdma2d.Init.OutputOffset = 0;
+  hdma2d.LayerCfg[1].InputOffset = 0;
+  hdma2d.LayerCfg[1].InputColorMode = DMA2D_INPUT_RGB565;
+  hdma2d.LayerCfg[1].AlphaMode = DMA2D_NO_MODIF_ALPHA;
+  hdma2d.LayerCfg[1].InputAlpha = 0xFF;
+  hdma2d.LayerCfg[1].AlphaInverted = DMA2D_REGULAR_ALPHA;
+  hdma2d.LayerCfg[1].RedBlueSwap = DMA2D_RB_REGULAR;
+  if (HAL_DMA2D_Init(&hdma2d) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN DCMI_Init 2 */
+  if (HAL_DMA2D_ConfigLayer(&hdma2d, 1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DMA2D_Init 2 */
 
-  /* USER CODE END DCMI_Init 2 */
+  /* USER CODE END DMA2D_Init 2 */
 
 }
 
@@ -404,16 +480,6 @@ static void MX_USART2_UART_Init(void)
 
 }
 
-/**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA2_CLK_ENABLE();
-
-}
 
 /**
   * @brief GPIO Initialization Function
@@ -464,18 +530,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(OV5640_PWDN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PSRAM_NBL0_Pin PSRAM_NBL1_Pin D7_Pin D6_Pin
-                           D12_Pin D5_Pin D11_Pin D4_Pin
-                           D10_Pin D9_Pin D8_Pin */
-  GPIO_InitStruct.Pin = PSRAM_NBL0_Pin|PSRAM_NBL1_Pin|D7_Pin|D6_Pin
-                          |D12_Pin|D5_Pin|D11_Pin|D4_Pin
-                          |D10_Pin|D9_Pin|D8_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_FMC;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
   /*Configure GPIO pins : ARD_D12_Pin ARD_D11_Pin */
   GPIO_InitStruct.Pin = ARD_D12_Pin|ARD_D11_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -498,28 +552,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LCD_BL_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PSRAM_NE_Pin PSRAM_A11_Pin PSRAM_A10_Pin PSRAM_A15_Pin
-                           PSRAM_A14_Pin PSRAM_A13_Pin PSRAM_A12_Pin */
-  GPIO_InitStruct.Pin = PSRAM_NE_Pin|PSRAM_A11_Pin|PSRAM_A10_Pin|PSRAM_A15_Pin
-                          |PSRAM_A14_Pin|PSRAM_A13_Pin|PSRAM_A12_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_FMC;
-  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : D2_Pin OE_Pin D3_Pin WE_Pin
-                           LCD_NE_Pin D1_Pin D0_Pin PSRAM_A17_Pin
-                           PSRAM_A16_Pin PSRAM_A18_LCD_RS_Pin D14_Pin D13_Pin */
-  GPIO_InitStruct.Pin = D2_Pin|OE_Pin|D3_Pin|WE_Pin
-                          |LCD_NE_Pin|D1_Pin|D0_Pin|PSRAM_A17_Pin
-                          |PSRAM_A16_Pin|PSRAM_A18_LCD_RS_Pin|D14_Pin|D13_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_FMC;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pin : ARD_D6_Pin */
   GPIO_InitStruct.Pin = ARD_D6_Pin;
@@ -629,18 +661,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PSRAM_A2_Pin PSRAM_A1_Pin PSRAM_A0_Pin PSRAM_A3_Pin
-                           PSRAM_A4_Pin PSRAM_A5_Pin PSRAM_A9_Pin PSRAM_A8_Pin
-                           PSRAM_A7_Pin PSRAM_A6_Pin */
-  GPIO_InitStruct.Pin = PSRAM_A2_Pin|PSRAM_A1_Pin|PSRAM_A0_Pin|PSRAM_A3_Pin
-                          |PSRAM_A4_Pin|PSRAM_A5_Pin|PSRAM_A9_Pin|PSRAM_A8_Pin
-                          |PSRAM_A7_Pin|PSRAM_A6_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_FMC;
-  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
   /*Configure GPIO pin : Audio_RST_Pin */
   GPIO_InitStruct.Pin = Audio_RST_Pin;

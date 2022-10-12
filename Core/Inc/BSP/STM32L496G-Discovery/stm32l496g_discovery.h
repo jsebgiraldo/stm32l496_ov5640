@@ -336,7 +336,7 @@ typedef struct
 #define IO1_I2C_ADDRESS                  ((uint16_t) 0x84)
 #define AUDIO_I2C_ADDRESS                ((uint16_t) 0x94)
 #define TS_I2C_ADDRESS                   ((uint16_t) 0x70)
-#define CAMERA_I2C_ADDRESS               ((uint16_t) 0X78)
+#define CAMERA_I2C_ADDRESS               ((uint16_t) 0x78)
 
 /* Maximum Timeout values for flags waiting loops. These timeouts are not based
    on accurate values, they just guarantee that the application will not remain
@@ -557,14 +557,14 @@ void                    BSP_COM_DeInit(COM_TypeDef COM, UART_HandleTypeDef *huar
 /* These __weak functions can be surcharged by application code for specific application needs */
 void                    BSP_ErrorHandler(void);
 
+
 void FMC_BANK1_MspInit(void);
 void FMC_BANK1_MspDeInit(void);
 #if defined(HAL_I2C_MODULE_ENABLED)
-
-void I2C2_WriteData(uint16_t Addr, uint16_t Reg, uint16_t RegSize, uint8_t Value);
-uint8_t I2C2_ReadData(uint16_t Addr, uint16_t Reg, uint16_t RegSize);
 void I2C2_Init(void);
 void I2C2_DeInit(void);
+uint8_t I2C2_ReadData(uint16_t Addr, uint16_t Reg, uint16_t RegSize);
+void I2C2_WriteData(uint16_t Addr, uint16_t Reg, uint16_t RegSize, uint8_t Value);
 #endif /* HAL_I2C_MODULE_ENABLED */
 
 /**

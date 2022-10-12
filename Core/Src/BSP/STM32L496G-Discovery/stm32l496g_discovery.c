@@ -21,6 +21,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32l496g_discovery.h"
 #include "stm32l496g_discovery_io.h"
+#include "stm32l496g_discovery_lcd.h"
 
 /** @addtogroup BSP
   * @{
@@ -159,9 +160,19 @@ static void               I2C2_Error(void);
 /**************************** Link functions ***********************************/
 #if defined(HAL_I2C_MODULE_ENABLED)
 
+static void     FMC_BANK1_WriteData(uint16_t Data);
+static void     FMC_BANK1_WriteReg(uint8_t Reg);
+static uint16_t FMC_BANK1_ReadData(void);
+static void     FMC_BANK1_Init(void);
 
 
 /* LCD IO functions */
+void            LCD_IO_Init(void);
+void            LCD_IO_WriteData(uint16_t RegValue);
+void            LCD_IO_WriteReg(uint8_t Reg);
+void            LCD_IO_WriteMultipleData(uint16_t *pData, uint32_t Size);
+uint16_t        LCD_IO_ReadData(void);
+void            LCD_IO_Delay(uint32_t Delay);
 
 /* Link functions for Audio Codec peripheral */
 void                      AUDIO_IO_Init(void);
@@ -203,7 +214,7 @@ void                      MFX_IO_ITConfig(void);
 void                      MFX_IO_EnableWakeupPin(void);
 void                      MFX_IO_Wakeup(void);
 void                      MFX_IO_Delay(uint32_t delay);
-
+void                      MFX_IO_Write(uint16_t addr, uint8_t reg, uint8_t value);
 uint8_t                   MFX_IO_Read(uint16_t addr, uint8_t reg);
 void                      MFX_IO_WriteMultiple(uint16_t Addr, uint8_t Reg, uint8_t *Buffer, uint16_t Length);
 uint16_t                  MFX_IO_ReadMultiple(uint16_t addr, uint8_t reg, uint8_t *buffer, uint16_t length);
@@ -883,7 +894,7 @@ static HAL_StatusTypeDef I2Cx_ReadMultiple(I2C_HandleTypeDef *i2c_handler,
   if (status != HAL_OK)
   {
     /* I2C error occurred */
-    //I2Cx_Error(i2c_handler, Addr);
+    I2Cx_Error(i2c_handler, Addr);
   }
   return status;
 }
@@ -1271,6 +1282,65 @@ void FMC_BANK1_MspInit(void)
 
 }
 
+
+/**
+  * @brief  Initializes LCD IO.
+  * @param  None
+  * @retval None
+  */
+void FMC_BANK1_Init(void)
+{
+  SRAM_HandleTypeDef hsram;
+  FMC_NORSRAM_TimingTypeDef sram_timing;
+  FMC_NORSRAM_TimingTypeDef sram_timing_write;
+
+  /*** Configure the SRAM Bank 1 ***/
+  /* Configure IPs */
+  hsram.Instance  = FMC_NORSRAM_DEVICE;
+  hsram.Extended  = FMC_NORSRAM_EXTENDED_DEVICE;
+
+
+  /* Timing for READING */
+
+  sram_timing.AddressSetupTime       = 1;
+  sram_timing.AddressHoldTime        = 1;
+  sram_timing.DataSetupTime          = 1;
+  sram_timing.BusTurnAroundDuration  = 0;
+  sram_timing.CLKDivision            = 2;
+  sram_timing.DataLatency            = 2;
+  sram_timing.AccessMode             = FMC_ACCESS_MODE_A;
+  /* Timing for WRITING */
+  sram_timing_write.AddressSetupTime      = 5;
+  sram_timing_write.AddressHoldTime       = 1;
+  sram_timing_write.DataSetupTime         = 3;
+  sram_timing_write.BusTurnAroundDuration = 2;
+  sram_timing_write.CLKDivision           = 2;
+  sram_timing_write.DataLatency           = 2;
+  sram_timing_write.AccessMode            = FMC_ACCESS_MODE_A;
+
+
+  hsram.Init.NSBank             = FMC_NORSRAM_BANK1;
+  hsram.Init.DataAddressMux     = FMC_DATA_ADDRESS_MUX_DISABLE;
+  hsram.Init.MemoryType         = FMC_MEMORY_TYPE_SRAM;
+  hsram.Init.MemoryDataWidth    = FMC_NORSRAM_MEM_BUS_WIDTH_16;
+  hsram.Init.BurstAccessMode    = FMC_BURST_ACCESS_MODE_DISABLE;
+  hsram.Init.WaitSignalPolarity = FMC_WAIT_SIGNAL_POLARITY_LOW;
+  hsram.Init.WaitSignalActive   = FMC_WAIT_TIMING_BEFORE_WS;
+  hsram.Init.WriteOperation     = FMC_WRITE_OPERATION_ENABLE;
+  hsram.Init.WaitSignal         = FMC_WAIT_SIGNAL_DISABLE;
+  hsram.Init.ExtendedMode       = FMC_EXTENDED_MODE_DISABLE;
+  hsram.Init.AsynchronousWait   = FMC_ASYNCHRONOUS_WAIT_DISABLE;
+  hsram.Init.WriteBurst         = FMC_WRITE_BURST_DISABLE;
+  hsram.Init.PageSize           = FMC_PAGE_SIZE_NONE;
+  hsram.Init.WriteFifo          = FMC_WRITE_FIFO_DISABLE;
+  hsram.Init.ContinuousClock    = FMC_CONTINUOUS_CLOCK_SYNC_ONLY;
+  /* Initialize the SRAM controller */
+  FMC_BANK1_MspInit();
+  HAL_SRAM_Init(&hsram, &sram_timing, &sram_timing_write);
+
+}
+
+
 /**
   * @brief  DeInitializes FMC_BANK1_LCD_IO MSP.
   * @param  None
@@ -1302,11 +1372,140 @@ void FMC_BANK1_MspDeInit(void)
 }
 
 
+/**
+  * @brief  Writes register value.
+  * @param  Data: Data to be written
+  * @retval None
+  */
+static void FMC_BANK1_WriteData(uint16_t Data)
+{
+  /* Write 16-bit Reg */
+  LCD_ADDR->REG = Data;
+}
+
+/**
+  * @brief  Writes register address.
+  * @param  Reg: Register to be written
+  * @retval None
+  */
+static void FMC_BANK1_WriteReg(uint8_t Reg)
+{
+  /* Write 16-bit Index, then write register */
+  FMC_BANK1_ADDR->REG = Reg;
+}
+
+/**
+  * @brief  Reads register value.
+  * @param  None
+  * @retval Read value
+  */
+static uint16_t FMC_BANK1_ReadData(void)
+{
+  return LCD_ADDR->REG;
+}
+
 /*******************************************************************************
                             LINK OPERATIONS
 *******************************************************************************/
 
+/********************************* LINK LCD ***********************************/
+
+/**
+  * @brief  Initializes LCD low level.
+  * @param  None
+  * @retval None
+  */
+void LCD_IO_Init(void)
+{
+  FMC_BANK1_Init();
+}
+
+/**
+  * @brief  Writes data on LCD data register.
+  * @param  Data: Data to be written
+  * @retval None
+  */
+void LCD_IO_WriteData(uint16_t RegValue)
+{
+  /* Write 16-bit Reg */
+  FMC_BANK1_WriteData(RegValue);
+}
+
+/**
+  * @brief  Writes several data on LCD data register.
+  * @param  Data: pointer on data to be written
+  * @param  Size: data amount in 16bits short unit
+  * @retval None
+  */
+void LCD_IO_WriteMultipleData(uint16_t *pData, uint32_t Size)
+{
+  uint32_t  i;
+
+  for (i = 0; i < Size; i++)
+  {
+    FMC_BANK1_WriteData(pData[i]);
+  }
+}
+
+/**
+  * @brief  Writes register on LCD register.
+  * @param  Reg: Register to be written
+  * @retval None
+  */
+void LCD_IO_WriteReg(uint8_t Reg)
+{
+  /* Write 16-bit Index, then Write Reg */
+  FMC_BANK1_WriteReg(Reg);
+}
+
+/**
+  * @brief  Reads data from LCD data register.
+  * @param  None
+  * @retval Read data.
+  */
+uint16_t LCD_IO_ReadData(void)
+{
+  return FMC_BANK1_ReadData();
+}
+
+/**
+  * @brief  LCD delay
+  * @param  Delay: Delay in ms
+  * @retval None
+  */
+void LCD_IO_Delay(uint32_t Delay)
+{
+  HAL_Delay(Delay);
+}
+
+
 /************************** LINK TS (TouchScreen) *****************************/
+/**
+  * @brief  Initializes Touchscreen low level.
+  * @retval None
+  */
+void TS_IO_Init(void)
+{
+  I2Cx_Init(&hI2cTSHandler);
+
+  if (ts_io_init == 0)
+  {
+    if (BSP_LCD_Init() == LCD_ERROR)
+    {
+      BSP_ErrorHandler();
+    }
+
+    BSP_IO_ConfigPin(TS_RST_PIN, IO_MODE_OUTPUT);
+
+    BSP_IO_WritePin(TS_RST_PIN, GPIO_PIN_RESET);
+    HAL_Delay(10);
+    BSP_IO_WritePin(TS_RST_PIN, GPIO_PIN_SET);
+    HAL_Delay(200);
+
+    ts_io_init = 1;
+  }
+}
+
 /**
   * @brief  Writes a single data.
   * @param  Addr: I2C address

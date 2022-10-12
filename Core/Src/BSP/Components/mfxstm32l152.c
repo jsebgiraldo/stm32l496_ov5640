@@ -19,7 +19,7 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
-#include "BSP/mfxstm32l152.h"
+#include "mfxstm32l152.h"
 
 /** @addtogroup BSP
   * @{
