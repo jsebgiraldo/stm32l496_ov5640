@@ -311,7 +311,7 @@ int main(void)
 				break;
 			case GPIO_PIN_9:
 				printf_dbg("JOY_LEFT was pressed!\r\n");
-				HAL_GPIO_WritePin(OV5640_PWDN_GPIO_Port, OV5640_PWDN_Pin, GPIO_PIN_RESET);   // ON
+				BSP_CAMERA_Suspend();
 				break;
 			case GPIO_PIN_10:
 				printf_dbg("JOY_DOWN was pressed!\r\n");
@@ -319,12 +319,10 @@ int main(void)
 				break;
 			case GPIO_PIN_11:
 				printf_dbg("JOY_RIGHT was pressed!\r\n");
-				HAL_GPIO_WritePin(OV5640_PWDN_GPIO_Port, OV5640_PWDN_Pin, GPIO_PIN_SET);    // 0FF
+				BSP_CAMERA_Resume();
 				break;
 			case GPIO_PIN_13:
 				printf_dbg("JOY_SEL was pressed!\r\n");
-				HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);   // Toogle
-
 				break;
 			default:
 				break;

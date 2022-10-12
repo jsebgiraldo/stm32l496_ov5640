@@ -71,11 +71,6 @@ OV5640_CAMERA_Drv_t   OV5640_CAMERA_Driver =
   * @}
   */
 
-/** @defgroup OV5640_Private_Functions_Prototypes Private Functions Prototypes
-  * @{
-  */
-static int32_t OV5640_Delay(OV5640_Object_t *pObj, uint32_t Delay);
-
 /**
   * @}
   */
@@ -518,18 +513,11 @@ int32_t OV5640_SetPixelFormat(OV5640_Object_t *pObj, uint32_t PixelFormat)
       case OV5640_YUV422:
         for (index = 0; index < (sizeof(OV5640_PF_YUV422) / 4U); index++)
         {
-          if (ret != OV5640_ERROR)
-          {
+
             tmp = (uint8_t)OV5640_PF_YUV422[index][1];
-            if (ov5640_write_reg(&pObj->Ctx, OV5640_PF_YUV422[index][0], &tmp, 1) != OV5640_OK)
-            {
-              ret = OV5640_ERROR;
-            }
-            else
-            {
-              (void)OV5640_Delay(pObj, 1);
-            }
-          }
+            I2C2_WriteData(OV5640_ADDR, OV5640_PF_YUV422[index][0], 2, tmp);
+
+
         }
         break;
 
@@ -539,14 +527,7 @@ int32_t OV5640_SetPixelFormat(OV5640_Object_t *pObj, uint32_t PixelFormat)
           if (ret != OV5640_ERROR)
           {
             tmp = (uint8_t)OV5640_PF_RGB888[index][1];
-            if (ov5640_write_reg(&pObj->Ctx, OV5640_PF_RGB888[index][0], &tmp, 1) != OV5640_OK)
-            {
-              ret = OV5640_ERROR;
-            }
-            else
-            {
-              (void)OV5640_Delay(pObj, 1);
-            }
+            I2C2_WriteData(OV5640_ADDR, OV5640_PF_RGB888[index][0], 2, tmp);
           }
         }
         break;
@@ -557,14 +538,7 @@ int32_t OV5640_SetPixelFormat(OV5640_Object_t *pObj, uint32_t PixelFormat)
           if (ret != OV5640_ERROR)
           {
             tmp = (uint8_t)OV5640_PF_Y8[index][1];
-            if (ov5640_write_reg(&pObj->Ctx, OV5640_PF_Y8[index][0], &tmp, 1) != OV5640_OK)
-            {
-              ret = OV5640_ERROR;
-            }
-            else
-            {
-              (void)OV5640_Delay(pObj, 1);
-            }
+            I2C2_WriteData(OV5640_ADDR, OV5640_PF_Y8[index][0], 2, tmp);
           }
         }
         break;
@@ -572,18 +546,8 @@ int32_t OV5640_SetPixelFormat(OV5640_Object_t *pObj, uint32_t PixelFormat)
       case OV5640_JPEG:
         for (index = 0; index < (sizeof(OV5640_PF_JPEG) / 4U); index++)
         {
-          if (ret != OV5640_ERROR)
-          {
-            tmp = (uint8_t)OV5640_PF_JPEG[index][1];
-            if (ov5640_write_reg(&pObj->Ctx, OV5640_PF_JPEG[index][0], &tmp, 1) != OV5640_OK)
-            {
-              ret = OV5640_ERROR;
-            }
-            else
-            {
-              (void)OV5640_Delay(pObj, 1);
-            }
-          }
+			tmp = (uint8_t)OV5640_PF_JPEG[index][1];
+			I2C2_WriteData(OV5640_ADDR, OV5640_PF_JPEG[index][0], 2, tmp);
         }
         break;
 
@@ -591,11 +555,9 @@ int32_t OV5640_SetPixelFormat(OV5640_Object_t *pObj, uint32_t PixelFormat)
       default:
         for (index = 0; index < (sizeof(OV5640_PF_RGB565) / 4U); index++)
         {
-          if (ret != OV5640_ERROR)
-          {
 
             I2C2_WriteData(OV5640_ADDR, OV5640_PF_RGB565[index][0], 2, (uint8_t)OV5640_PF_RGB565[index][1]);
-          }
+
         }
         break;
 
@@ -603,51 +565,25 @@ int32_t OV5640_SetPixelFormat(OV5640_Object_t *pObj, uint32_t PixelFormat)
 
     if (PixelFormat == OV5640_JPEG)
     {
-      if (ov5640_read_reg(&pObj->Ctx, OV5640_TIMING_TC_REG21, &tmp, 1) != OV5640_OK)
-      {
-        ret = OV5640_ERROR;
-      }
-      else
-      {
+
+    	tmp = I2C2_ReadData(OV5640_ADDR, OV5640_TIMING_TC_REG21, 2);
         tmp |= (1 << 5);
-        if (ov5640_write_reg(&pObj->Ctx, OV5640_TIMING_TC_REG21, &tmp, 1) != OV5640_OK)
-        {
-          ret = OV5640_ERROR;
-        }
-        else
-        {
-          if (ov5640_read_reg(&pObj->Ctx, OV5640_SYSREM_RESET02, &tmp, 1) != OV5640_OK)
-          {
-            ret = OV5640_ERROR;
-          }
-          else
-          {
-            tmp &= ~((1 << 4) | (1 << 3) | (1 << 2));
-            if (ov5640_write_reg(&pObj->Ctx, OV5640_SYSREM_RESET02, &tmp, 1) != OV5640_OK)
-            {
-              ret = OV5640_ERROR;
-            }
-            else
-            {
-              if (ov5640_read_reg(&pObj->Ctx, OV5640_CLOCK_ENABLE02, &tmp, 1) != OV5640_OK)
-              {
-                ret = OV5640_ERROR;
-              }
-              else
-              {
-                tmp |= ((1 << 5) | (1 << 3));
-                if (ov5640_write_reg(&pObj->Ctx, OV5640_CLOCK_ENABLE02, &tmp, 1) != OV5640_OK)
-                {
-                  ret = OV5640_ERROR;
-                }
-              }
-            }
-          }
-        }
+        I2C2_WriteData(OV5640_ADDR, OV5640_TIMING_TC_REG21, 2, tmp);
+
+        tmp = I2C2_ReadData(OV5640_ADDR, OV5640_SYSREM_RESET02, 2);
+        tmp &= ~((1 << 4) | (1 << 3) | (1 << 2));
+        I2C2_WriteData(OV5640_ADDR, OV5640_SYSREM_RESET02, 2, tmp);
+
+        tmp = I2C2_ReadData(OV5640_ADDR, OV5640_CLOCK_ENABLE02, 2);
+        tmp |= ((1 << 5) | (1 << 3));
+        I2C2_WriteData(OV5640_ADDR, OV5640_CLOCK_ENABLE02, 2, tmp);
+
+
+
       }
-    }
+
   }
-  return ret;
+  return 1;
 }
 
 /**
@@ -1343,45 +1279,35 @@ int32_t OV5640_SetColorEffect(OV5640_Object_t *pObj, uint32_t Effect)
   */
 int32_t OV5640_SetBrightness(OV5640_Object_t *pObj, int32_t Level)
 {
-  int32_t ret;
   const uint8_t brightness_level[] = {0x40U, 0x30U, 0x20U, 0x10U, 0x00U, 0x10U, 0x20U, 0x30U, 0x40U};
   uint8_t tmp;
 
   tmp = 0xFF;
-  ret = ov5640_write_reg(&pObj->Ctx, OV5640_ISP_CONTROL01, &tmp, 1);
+  I2C2_WriteData(OV5640_ADDR, OV5640_ISP_CONTROL01, 2, tmp);
 
-  if (ret == OV5640_OK)
-  {
-    tmp = brightness_level[Level + 4];
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL7, &tmp, 1);
-  }
-  if (ret == OV5640_OK)
-  {
+
+	tmp = brightness_level[Level + 4];
+	I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL7, 2, tmp);
+
+
     tmp = 0x04;
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL0, &tmp, 1);
-  }
+    I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL0, 2, tmp);
 
-  if (ret == OV5640_OK)
-  {
+
     if (Level < 0)
     {
       tmp = 0x01;
-      if (ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL8, &tmp, 1) != OV5640_OK)
-      {
-        ret = OV5640_ERROR;
-      }
+      I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL8, 2, tmp);
+
     }
     else
     {
       tmp = 0x09;
-      if (ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL8, &tmp, 1) != OV5640_OK)
-      {
-        ret = OV5640_ERROR;
-      }
+      I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL8, 2, tmp);
     }
-  }
 
-  return ret;
+
+  return 1;
 }
 
 /**
@@ -1482,7 +1408,6 @@ int32_t OV5640_SetContrast(OV5640_Object_t *pObj, int32_t Level)
   */
 int32_t OV5640_SetHueDegree(OV5640_Object_t *pObj, int32_t Degree)
 {
-  int32_t ret;
   const uint8_t hue_degree_ctrl1[] = {0x80U, 0x6FU, 0x40U, 0x00U, 0x40U, 0x6FU, 0x80U, 0x6FU, 0x40U, 0x00U, 0x40U,
                                       0x6FU
                                      };
@@ -1495,35 +1420,25 @@ int32_t OV5640_SetHueDegree(OV5640_Object_t *pObj, int32_t Degree)
   uint8_t tmp;
 
   tmp = 0xFF;
-  ret = ov5640_write_reg(&pObj->Ctx, OV5640_ISP_CONTROL01, &tmp, 1);
+  I2C2_WriteData(OV5640_ADDR, OV5640_ISP_CONTROL01, 2, tmp);
 
-  if (ret == OV5640_OK)
-  {
+
     tmp = 0x01;
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL0, &tmp, 1);
-  }
-  if (ret == OV5640_OK)
-  {
+    I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL0, 2, tmp);
+
+
     tmp = hue_degree_ctrl1[Degree + 6];
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL1, &tmp, 1);
-  }
-  if (ret == OV5640_OK)
-  {
+    I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL1, 2, tmp);
+
+
     tmp = hue_degree_ctrl2[Degree + 6];
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL2, &tmp, 1);
-  }
-  if (ret == OV5640_OK)
-  {
+    I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL2, 2, tmp);
+
+
     tmp = hue_degree_ctrl8[Degree + 6];
-    ret = ov5640_write_reg(&pObj->Ctx, OV5640_SDE_CTRL8, &tmp, 1);
-  }
+    I2C2_WriteData(OV5640_ADDR, OV5640_SDE_CTRL8, 2, tmp);
 
-  if (ret != OV5640_OK)
-  {
-    ret = OV5640_ERROR;
-  }
-
-  return ret;
+  return 1;
 }
 
 /**
@@ -1952,15 +1867,7 @@ int32_t OV5640_SetPCLK(OV5640_Object_t *pObj, uint32_t ClockValue)
   * @param Delay  specifies the delay time length, in milliseconds
   * @retval OV5640_OK
   */
-static int32_t OV5640_Delay(OV5640_Object_t *pObj, uint32_t Delay)
-{
-  uint32_t tickstart;
-  tickstart = pObj->IO.GetTick();
-  while ((pObj->IO.GetTick() - tickstart) < Delay)
-  {
-  }
-  return OV5640_OK;
-}
+
 
 
 /**

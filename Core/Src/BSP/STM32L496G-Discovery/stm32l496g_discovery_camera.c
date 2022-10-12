@@ -153,6 +153,7 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
   phdcmi->Init.PCKPolarity      = DCMI_PCKPOLARITY_RISING;
   phdcmi->Init.ByteSelectMode   = DCMI_BSM_ALL;
   phdcmi->Init.LineSelectMode   = DCMI_LSM_ALL;
+  phdcmi->Init.JPEGMode			= DCMI_JPEG_ENABLE;
   phdcmi->Instance              = DCMI;
 
   /* Camera initialization */
@@ -177,7 +178,7 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
       /* For 240x240 resolution, the OV9655 sensor is set to QVGA resolution
        * as OV9655 doesn't supports 240x240  resolution,
        * then DCMI is configured to output a 240x240 cropped window */
-      OV5640_Init(&OV5640Obj, RESOLUTION_R320x240, CAMERA_PF_RGB565);
+      OV5640_Init(&OV5640Obj, RESOLUTION_R320x240, OV5640_RGB565);
 
 
       HAL_DCMI_ConfigCROP(phdcmi,
@@ -204,7 +205,13 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
     CameraCurrentResolution = Resolution;
 
     OV5640_SetLightMode(&OV5640Obj, OV5640_LIGHT_AUTO);
-    OV5640_SetSaturation(&OV5640Obj, 2);
+    OV5640_SetSaturation(&OV5640Obj, 0);
+    OV5640_SetBrightness(&OV5640Obj, 0);
+    OV5640_SetHueDegree(&OV5640Obj, 1);
+
+    OV5640_SetPixelFormat(&OV5640Obj, OV5640_RGB565);
+
+
 
     /* Return CAMERA_OK status */
     status = CAMERA_OK;
