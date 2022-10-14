@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -26,7 +27,11 @@
 
 #include "user_ring_buffer.h"
 
+#include "ff_gen_drv.h"
+#include "sd_diskio.h"
+
 #include "ov5640.h"
+
 #include "stm32l496g_discovery.h"
 #include "stm32l496g_discovery_io.h"
 #include "stm32l496g_discovery_camera.h"
@@ -92,6 +97,8 @@ DMA_HandleTypeDef hdma_dcmi;
 
 DMA2D_HandleTypeDef hdma2d;
 
+SD_HandleTypeDef hsd1;
+
 UART_HandleTypeDef huart2;
 
 SRAM_HandleTypeDef hsram1;
@@ -109,13 +116,34 @@ static uint16_t xQueue_IRQ_buffer[XQUEUE_BUFFER_SIZE];
 
 uint16_t pBuffer[240 * 240];
 
+
+FATFS SDFatFs;  /* File system object for SD card logical drive */
+FIL MyFile;     /* File object */
+//char SDPath[4]; /* SD card logical drive path */
+
+typedef enum {
+  APPLICATION_IDLE = 0,
+  APPLICATION_RUNNING,
+  APPLICATION_SD_UNPLUGGED,
+}FS_FileOperationsTypeDef;
+
+FS_FileOperationsTypeDef Appli_state = APPLICATION_IDLE;
+
+static uint8_t isInitialized = 0;
+//static uint8_t isCreated = 0;
+uint8_t workBuffer[_MAX_SS];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DCMI_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_DMA2D_Init(void);
+static void MX_FMC_Init(void);
+static void MX_SDMMC1_SD_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -151,7 +179,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		ring_buffer_put(xQueue_IRQ_Events, GPIO_Pin);
 		previusMillis = currentMillis;
 	}
-
 
 }
 
@@ -208,6 +235,34 @@ static HAL_StatusTypeDef LCD_Write(uint32_t OrigAddress, uint32_t DestAddress, u
   return HAL_OK;
 }
 
+
+/**
+  * @brief  Initialize the SD card.
+  * @param  None
+  * @retval None
+  */
+static void SD_Initialize(void)
+{
+  if (isInitialized == 0)
+  {
+    if (BSP_SD_Init() == MSD_OK)
+    {
+      BSP_SD_ITConfig();
+      isInitialized = 1;
+      printf_dbg("SD Initialize Okey!\r\n");
+    }
+    else
+    {
+      BSP_LED_On(LED1);
+      printf_dbg("SD Initialize ERROR!!\r\n");
+      /* wait until the uSD is plugged */
+      while (BSP_SD_IsDetected() != SD_PRESENT)
+      {}
+      BSP_LED_Off(LED1);
+    }
+  }
+}
+
 /**
   * @brief  Frame Event callback.
   * @param  None
@@ -254,10 +309,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  //MX_DMA_Init();
+  MX_DCMI_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_DMA2D_Init();
-  //MX_FMC_Init();
+  MX_FMC_Init();
+  MX_SDMMC1_SD_Init();
+  //MX_FATFS_Init();
 
   /* Initialize interrupts */
   MX_NVIC_Init();
@@ -275,20 +333,32 @@ int main(void)
   ret =BSP_LCD_Init();
   if(ret == LCD_OK) printf_dbg("LCD OK\r\n");
 
-  BSP_CAMERA_Init(RESOLUTION_R320x240);
+  //BSP_CAMERA_Init(RESOLUTION_R320x240);
   if(ret == CAMERA_OK) printf_dbg("Camera OK\r\n");
 
   /* Wait 1s to let auto-loops in the camera module converge and lead to correct exposure */
-    HAL_Delay(1000);
+    //HAL_Delay(1000);
 
     /*##-4- Camera Continuous capture start in QVGA resolution ############################*/
     /* Disable unwanted HSYNC (IT_LINE)/VSYNC interrupts */
-    __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC);
+    //__HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC);
 
-    hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS,  (uint32_t)pBuffer , (ST7789H2_LCD_PIXEL_WIDTH*ST7789H2_LCD_PIXEL_HEIGHT)/2 );
-    if(hal_status != HAL_OK)Error_Handler();
+    //hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS,  (uint32_t)pBuffer , (ST7789H2_LCD_PIXEL_WIDTH*ST7789H2_LCD_PIXEL_HEIGHT)/2 );
+    //if(hal_status != HAL_OK)Error_Handler();
 
-  //jpeg_test(QVGA_320_240);
+    /* 1- Link the micro SD disk I/O driver */
+	if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0)
+	{
+	/*##-2- Init the SD Card #################################################*/
+
+		SD_Initialize();
+
+		if(BSP_SD_IsDetected())
+		{
+			//Appli_state = APPLICATION_RUNNING;
+			printf_dbg("SD Card OK\r\n");
+		}
+	}
 
   /* USER CODE END 2 */
 
@@ -405,6 +475,43 @@ static void MX_NVIC_Init(void)
 }
 
 /**
+  * @brief DCMI Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_DCMI_Init(void)
+{
+
+  /* USER CODE BEGIN DCMI_Init 0 */
+
+  /* USER CODE END DCMI_Init 0 */
+
+  /* USER CODE BEGIN DCMI_Init 1 */
+
+  /* USER CODE END DCMI_Init 1 */
+  hdcmi.Instance = DCMI;
+  hdcmi.Init.SynchroMode = DCMI_SYNCHRO_HARDWARE;
+  hdcmi.Init.PCKPolarity = DCMI_PCKPOLARITY_RISING;
+  hdcmi.Init.VSPolarity = DCMI_VSPOLARITY_HIGH;
+  hdcmi.Init.HSPolarity = DCMI_HSPOLARITY_LOW;
+  hdcmi.Init.CaptureRate = DCMI_CR_ALL_FRAME;
+  hdcmi.Init.ExtendedDataMode = DCMI_EXTEND_DATA_8B;
+  hdcmi.Init.JPEGMode = DCMI_JPEG_ENABLE;
+  hdcmi.Init.ByteSelectMode = DCMI_BSM_ALL;
+  hdcmi.Init.ByteSelectStart = DCMI_OEBS_ODD;
+  hdcmi.Init.LineSelectMode = DCMI_LSM_ALL;
+  hdcmi.Init.LineSelectStart = DCMI_OELS_ODD;
+  if (HAL_DCMI_Init(&hdcmi) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DCMI_Init 2 */
+
+  /* USER CODE END DCMI_Init 2 */
+
+}
+
+/**
   * @brief DMA2D Initialization Function
   * @param None
   * @retval None
@@ -444,6 +551,34 @@ static void MX_DMA2D_Init(void)
 }
 
 /**
+  * @brief SDMMC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SDMMC1_SD_Init(void)
+{
+
+  /* USER CODE BEGIN SDMMC1_Init 0 */
+
+  /* USER CODE END SDMMC1_Init 0 */
+
+  /* USER CODE BEGIN SDMMC1_Init 1 */
+
+  /* USER CODE END SDMMC1_Init 1 */
+  hsd1.Instance = SDMMC1;
+  hsd1.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
+  hsd1.Init.ClockBypass = SDMMC_CLOCK_BYPASS_DISABLE;
+  hsd1.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
+  hsd1.Init.BusWide = SDMMC_BUS_WIDE_1B;
+  hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_ENABLE;
+  hsd1.Init.ClockDiv = 0;
+  /* USER CODE BEGIN SDMMC1_Init 2 */
+
+  /* USER CODE END SDMMC1_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -478,6 +613,110 @@ static void MX_USART2_UART_Init(void)
 
 }
 
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA2_Channel6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Channel6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Channel6_IRQn);
+
+}
+
+/* FMC initialization function */
+static void MX_FMC_Init(void)
+{
+
+  /* USER CODE BEGIN FMC_Init 0 */
+
+  /* USER CODE END FMC_Init 0 */
+
+  FMC_NORSRAM_TimingTypeDef Timing = {0};
+
+  /* USER CODE BEGIN FMC_Init 1 */
+
+  /* USER CODE END FMC_Init 1 */
+
+  /** Perform the SRAM1 memory initialization sequence
+  */
+  hsram1.Instance = FMC_NORSRAM_DEVICE;
+  hsram1.Extended = FMC_NORSRAM_EXTENDED_DEVICE;
+  /* hsram1.Init */
+  hsram1.Init.NSBank = FMC_NORSRAM_BANK2;
+  hsram1.Init.DataAddressMux = FMC_DATA_ADDRESS_MUX_DISABLE;
+  hsram1.Init.MemoryType = FMC_MEMORY_TYPE_SRAM;
+  hsram1.Init.MemoryDataWidth = FMC_NORSRAM_MEM_BUS_WIDTH_8;
+  hsram1.Init.BurstAccessMode = FMC_BURST_ACCESS_MODE_DISABLE;
+  hsram1.Init.WaitSignalPolarity = FMC_WAIT_SIGNAL_POLARITY_LOW;
+  hsram1.Init.WaitSignalActive = FMC_WAIT_TIMING_BEFORE_WS;
+  hsram1.Init.WriteOperation = FMC_WRITE_OPERATION_DISABLE;
+  hsram1.Init.WaitSignal = FMC_WAIT_SIGNAL_DISABLE;
+  hsram1.Init.ExtendedMode = FMC_EXTENDED_MODE_DISABLE;
+  hsram1.Init.AsynchronousWait = FMC_ASYNCHRONOUS_WAIT_DISABLE;
+  hsram1.Init.WriteBurst = FMC_WRITE_BURST_DISABLE;
+  hsram1.Init.ContinuousClock = FMC_CONTINUOUS_CLOCK_SYNC_ONLY;
+  hsram1.Init.WriteFifo = FMC_WRITE_FIFO_ENABLE;
+  hsram1.Init.PageSize = FMC_PAGE_SIZE_NONE;
+  /* Timing */
+  Timing.AddressSetupTime = 15;
+  Timing.AddressHoldTime = 15;
+  Timing.DataSetupTime = 255;
+  Timing.BusTurnAroundDuration = 15;
+  Timing.CLKDivision = 16;
+  Timing.DataLatency = 17;
+  Timing.AccessMode = FMC_ACCESS_MODE_A;
+  /* ExtTiming */
+
+  if (HAL_SRAM_Init(&hsram1, &Timing, NULL) != HAL_OK)
+  {
+    Error_Handler( );
+  }
+
+  /** Perform the SRAM2 memory initialization sequence
+  */
+  hsram2.Instance = FMC_NORSRAM_DEVICE;
+  hsram2.Extended = FMC_NORSRAM_EXTENDED_DEVICE;
+  /* hsram2.Init */
+  hsram2.Init.NSBank = FMC_NORSRAM_BANK1;
+  hsram2.Init.DataAddressMux = FMC_DATA_ADDRESS_MUX_DISABLE;
+  hsram2.Init.MemoryType = FMC_MEMORY_TYPE_SRAM;
+  hsram2.Init.MemoryDataWidth = FMC_NORSRAM_MEM_BUS_WIDTH_8;
+  hsram2.Init.BurstAccessMode = FMC_BURST_ACCESS_MODE_DISABLE;
+  hsram2.Init.WaitSignalPolarity = FMC_WAIT_SIGNAL_POLARITY_LOW;
+  hsram2.Init.WaitSignalActive = FMC_WAIT_TIMING_BEFORE_WS;
+  hsram2.Init.WriteOperation = FMC_WRITE_OPERATION_DISABLE;
+  hsram2.Init.WaitSignal = FMC_WAIT_SIGNAL_DISABLE;
+  hsram2.Init.ExtendedMode = FMC_EXTENDED_MODE_DISABLE;
+  hsram2.Init.AsynchronousWait = FMC_ASYNCHRONOUS_WAIT_DISABLE;
+  hsram2.Init.WriteBurst = FMC_WRITE_BURST_DISABLE;
+  hsram2.Init.ContinuousClock = FMC_CONTINUOUS_CLOCK_SYNC_ONLY;
+  hsram2.Init.WriteFifo = FMC_WRITE_FIFO_ENABLE;
+  hsram2.Init.PageSize = FMC_PAGE_SIZE_NONE;
+  /* Timing */
+  Timing.AddressSetupTime = 15;
+  Timing.AddressHoldTime = 15;
+  Timing.DataSetupTime = 255;
+  Timing.BusTurnAroundDuration = 15;
+  Timing.CLKDivision = 16;
+  Timing.DataLatency = 17;
+  Timing.AccessMode = FMC_ACCESS_MODE_A;
+  /* ExtTiming */
+
+  if (HAL_SRAM_Init(&hsram2, &Timing, NULL) != HAL_OK)
+  {
+    Error_Handler( );
+  }
+
+  /* USER CODE BEGIN FMC_Init 2 */
+
+  /* USER CODE END FMC_Init 2 */
+}
 
 /**
   * @brief GPIO Initialization Function
@@ -536,44 +775,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : ARD_D10_Pin ARD_D13_Pin */
-  GPIO_InitStruct.Pin = ARD_D10_Pin|ARD_D13_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pin : LCD_BL_Pin */
   GPIO_InitStruct.Pin = LCD_BL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LCD_BL_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : ARD_D6_Pin */
-  GPIO_InitStruct.Pin = ARD_D6_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF3_TIM8;
-  HAL_GPIO_Init(ARD_D6_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SPI2_MISO_Pin SPI2_CLK_Pin */
-  GPIO_InitStruct.Pin = SPI2_MISO_Pin|SPI2_CLK_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
-  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : ARD_D3_Pin ARD_D9_Pin */
-  GPIO_InitStruct.Pin = ARD_D3_Pin|ARD_D9_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF3_TIM8;
-  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
   /*Configure GPIO pins : I2C1_SCL_Pin I2C1_SDA_Pin */
   GPIO_InitStruct.Pin = I2C1_SCL_Pin|I2C1_SDA_Pin;
@@ -614,24 +821,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : uSD_CMD_Pin */
-  GPIO_InitStruct.Pin = uSD_CMD_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
-  HAL_GPIO_Init(uSD_CMD_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : uSD_D2_Pin uSD_D3_Pin uSD_CLK_Pin uSD_D1_Pin
-                           uSD_D0_Pin */
-  GPIO_InitStruct.Pin = uSD_D2_Pin|uSD_D3_Pin|uSD_CLK_Pin|uSD_D1_Pin
-                          |uSD_D0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LCD_TE_Pin */
   GPIO_InitStruct.Pin = LCD_TE_Pin;
@@ -722,6 +911,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(MFX_IRQ_OUT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ARD_D13_Pin */
+  GPIO_InitStruct.Pin = ARD_D13_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
+  HAL_GPIO_Init(ARD_D13_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : OV5640_SIOC_Pin */
   GPIO_InitStruct.Pin = OV5640_SIOC_Pin;

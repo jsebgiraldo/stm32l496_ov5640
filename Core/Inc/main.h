@@ -68,8 +68,6 @@ void Error_Handler(void);
 #define ARD_D12_GPIO_Port GPIOB
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
-#define ARD_D10_Pin GPIO_PIN_15
-#define ARD_D10_GPIO_Port GPIOA
 #define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
 #define SWDIO_Pin GPIO_PIN_13
@@ -91,14 +89,6 @@ void Error_Handler(void);
 #define PSRAM_NE_GPIO_Port GPIOG
 #define D2_Pin GPIO_PIN_0
 #define D2_GPIO_Port GPIOD
-#define ARD_D6_Pin GPIO_PIN_6
-#define ARD_D6_GPIO_Port GPIOI
-#define SPI2_MISO_Pin GPIO_PIN_2
-#define SPI2_MISO_GPIO_Port GPIOI
-#define SPI2_CLK_Pin GPIO_PIN_1
-#define SPI2_CLK_GPIO_Port GPIOI
-#define ARD_D3_Pin GPIO_PIN_15
-#define ARD_D3_GPIO_Port GPIOH
 #define DCMI_D3_Pin GPIO_PIN_12
 #define DCMI_D3_GPIO_Port GPIOH
 #define I2C1_SCL_Pin GPIO_PIN_8
@@ -109,8 +99,6 @@ void Error_Handler(void);
 #define OE_GPIO_Port GPIOD
 #define D3_Pin GPIO_PIN_1
 #define D3_GPIO_Port GPIOD
-#define ARD_D9_Pin GPIO_PIN_13
-#define ARD_D9_GPIO_Port GPIOH
 #define JOY_UP_Pin GPIO_PIN_8
 #define JOY_UP_GPIO_Port GPIOI
 #define JOY_UP_EXTI_IRQn EXTI9_5_IRQn
