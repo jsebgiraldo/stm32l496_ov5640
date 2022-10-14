@@ -130,7 +130,7 @@ typedef enum {
 FS_FileOperationsTypeDef Appli_state = APPLICATION_IDLE;
 
 static uint8_t isInitialized = 0;
-//static uint8_t isCreated = 0;
+static uint8_t isCreated = 0;
 uint8_t workBuffer[_MAX_SS];
 
 /* USER CODE END PV */
@@ -279,6 +279,72 @@ void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 	if(hal_status != HAL_OK)Error_Handler();
 }
 
+static void FS_FileOperations(void)
+{
+  FRESULT res; /* FatFs function common result code */
+  uint32_t byteswritten, bytesread; /* File write/read counts */
+  uint8_t wtext[] = "stm32l496g_discovery : This is STM32 working with FatFs and uSD diskio driver"; /* File write buffer */
+  uint8_t rtext[100]; /* File read buffer */
+
+  /* Register the file system object to the FatFs module */
+  if(f_mount(&SDFatFs, (TCHAR const*)SDPath, 0) == FR_OK)
+  {
+	printf_dbg("f_mount!\r\n");
+#if 1
+    if (isCreated == 0)
+    {
+      res = f_mkfs(SDPath, FM_ANY, 0, workBuffer, sizeof(workBuffer));
+
+      if (res != FR_OK)
+      {
+        Error_Handler();
+        while(1);
+      }
+    }
+    isCreated = 1;
+#endif
+    /* Create and Open a new text file object with write access */
+    if(f_open(&MyFile, "STM32.TXT", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+    {
+      printf_dbg("f_open!\r\n");
+      /* Write data to the text file */
+      res = f_write(&MyFile, wtext, sizeof(wtext), (void *)&byteswritten);
+
+      if((byteswritten > 0) && (res == FR_OK))
+      {
+        /* Close the open text file */
+        f_close(&MyFile);
+        printf_dbg("f_close!\r\n");
+
+        /* Open the text file object with read access */
+        if(f_open(&MyFile, "STM32.TXT", FA_READ) == FR_OK)
+        {
+          printf_dbg("f_open!\r\n");
+          /* Read data from the text file */
+          res = f_read(&MyFile, rtext, sizeof(rtext), (void *)&bytesread);
+
+          if((bytesread > 0) && (res == FR_OK))
+          {
+            /* Close the open text file */
+            f_close(&MyFile);
+		    printf_dbg("f_close!\r\n");
+
+            /* Compare read data with the expected data */
+            if((bytesread == byteswritten))
+            {
+              /* Success of the demo: no error occurrence */
+            	printf_dbg("Operation end!\r\n");
+              return;
+            }
+          }
+        }
+      }
+    }
+  }
+  /* Error */
+  Error_Handler();
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -333,32 +399,32 @@ int main(void)
   ret =BSP_LCD_Init();
   if(ret == LCD_OK) printf_dbg("LCD OK\r\n");
 
-  //BSP_CAMERA_Init(RESOLUTION_R320x240);
+  BSP_CAMERA_Init(RESOLUTION_R320x240);
   if(ret == CAMERA_OK) printf_dbg("Camera OK\r\n");
 
   /* Wait 1s to let auto-loops in the camera module converge and lead to correct exposure */
-    //HAL_Delay(1000);
+  HAL_Delay(1000);
 
     /*##-4- Camera Continuous capture start in QVGA resolution ############################*/
     /* Disable unwanted HSYNC (IT_LINE)/VSYNC interrupts */
-    //__HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC);
+  __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC);
 
-    //hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS,  (uint32_t)pBuffer , (ST7789H2_LCD_PIXEL_WIDTH*ST7789H2_LCD_PIXEL_HEIGHT)/2 );
-    //if(hal_status != HAL_OK)Error_Handler();
+  hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS,  (uint32_t)pBuffer , (ST7789H2_LCD_PIXEL_WIDTH*ST7789H2_LCD_PIXEL_HEIGHT)/2 );
+  if(hal_status != HAL_OK)Error_Handler();
 
     /* 1- Link the micro SD disk I/O driver */
-	if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0)
-	{
+  if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0)
+  {
 	/*##-2- Init the SD Card #################################################*/
 
-		SD_Initialize();
+	SD_Initialize();
 
-		if(BSP_SD_IsDetected())
-		{
-			//Appli_state = APPLICATION_RUNNING;
-			printf_dbg("SD Card OK\r\n");
-		}
+	if(BSP_SD_IsDetected())
+	{
+		//Appli_state = APPLICATION_RUNNING;
+		printf_dbg("SD Card OK\r\n");
 	}
+   }
 
   /* USER CODE END 2 */
 
@@ -393,6 +459,7 @@ int main(void)
 				break;
 			case GPIO_PIN_13:
 				printf_dbg("JOY_SEL was pressed!\r\n");
+				FS_FileOperations();
 				break;
 			default:
 				break;
