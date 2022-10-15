@@ -180,14 +180,14 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
        * then DCMI is configured to output a 240x240 cropped window */
       OV5640_Init(&OV5640Obj, RESOLUTION_R320x240, OV5640_RGB565);
 
-
+#if 0
       HAL_DCMI_ConfigCROP(phdcmi,
                           40,                 /* Crop in the middle of the VGA picture */
                           0,                 /* Same height (same number of lines: no need to crop vertically) */
                           (240 * 2) - 1,     /* 2 pixels clock needed to capture one pixel */
                           (240 * 1) - 1);    /* All 240 lines are captured */
       HAL_DCMI_EnableCROP(phdcmi);
-
+#endif
 
       /* Set the RGB565 mode */
       MFX_IO_Write(CameraHwAddress, 0x12 /*OV9655_COM7*/, 0x63);
@@ -209,7 +209,7 @@ uint8_t BSP_CAMERA_Init(uint32_t Resolution)
     OV5640_SetBrightness(&OV5640Obj, 0);
     OV5640_SetHueDegree(&OV5640Obj, 1);
 
-    OV5640_SetPixelFormat(&OV5640Obj, OV5640_RGB565);
+    OV5640_SetPixelFormat(&OV5640Obj, OV5640_JPEG);
 
 
 

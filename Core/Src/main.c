@@ -114,6 +114,12 @@ HAL_StatusTypeDef hal_status = HAL_OK;
 ring_buffer_handle_t xQueue_IRQ_Events;
 static uint16_t xQueue_IRQ_buffer[XQUEUE_BUFFER_SIZE];
 
+
+#define   jpeg_buf_size     31*1024
+uint32_t  jpeg_data_buf[jpeg_buf_size];
+
+uint8_t jpeg_data_encode[jpeg_buf_size];
+
 uint16_t pBuffer[240 * 240];
 
 
@@ -193,25 +199,91 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   * @param  ySize: image height (in pixels)
   * @retval None
   */
-static void LCD_ImagePreparation(uint16_t x0, uint16_t y0, uint16_t xSize, uint16_t ySize)
-{
-  /* CASET: Column Address Set */
-  LCD_IO_WriteReg(ST7789H2_CASET);
-  /* Send commands */
-  LCD_IO_WriteData(0x00);
-  LCD_IO_WriteData(x0);
-  LCD_IO_WriteData(0x00);
-  LCD_IO_WriteData(x0 + xSize -1);
-  /* RASET: Row Address Set */
-  LCD_IO_WriteReg(ST7789H2_RASET);
-  /* Send commands */
-  LCD_IO_WriteData(0x00);
-  LCD_IO_WriteData(y0);
-  LCD_IO_WriteData(0x00);
-  LCD_IO_WriteData(y0 + ySize -1);
 
-  /* Prepare to write to LCD RAM */
-  LCD_IO_WriteReg(ST7789H2_WRITE_RAM);
+
+void jpeg_dcmi_frame_callback(DMA_HandleTypeDef *_hdma)
+{
+        uint8_t *p;
+        uint32_t i=0,jpgstart=0,jpglen=0;
+        uint8_t  head=0;
+
+
+
+        HAL_DCMI_Stop(&hdcmi);
+
+        p=(uint8_t*)jpeg_data_buf;
+
+
+        FRESULT res; /* FatFs function common result code */
+          uint32_t byteswritten; /* File write/read counts */
+
+
+          /* Register the file system object to the FatFs module */
+          if(f_mount(&SDFatFs, (TCHAR const*)SDPath, 0) == FR_OK)
+          {
+        	printf_dbg("f_mount!\r\n");
+        #if 1
+            if (isCreated == 0)
+            {
+              res = f_mkfs(SDPath, FM_ANY, 0, workBuffer, sizeof(workBuffer));
+
+              if (res != FR_OK)
+              {
+                Error_Handler();
+                while(1);
+              }
+            }
+            isCreated = 1;
+        #endif
+            /* Create and Open a new text file object with write access */
+            if(f_open(&MyFile, "STM32.jpeg", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+            {
+              printf_dbg("f_open!\r\n");
+              /* Write data to the text file */
+
+              for(i=0;i<jpeg_buf_size * 4; i++) //search for 0XFF 0XD8 and 0XFF 0XD9, get size of JPG
+			  {
+					  if((p[i]==0XFF)&&(p[i+1]==0XD8))
+					  {
+							  jpgstart=i;
+							  head=1;	// Already found  FF D8
+					  }
+					  if((p[i]==0XFF)&&(p[i+1]==0XD9)&&head)  //search for FF D9
+					  {
+							  jpglen=i-jpgstart+2;
+							  break;
+					  }
+			  }
+			  if(jpglen)
+			  {
+					  p+=jpgstart;	// move to FF D8
+					  //HAL_UART_Transmit(&huart2, p, jpglen, 5000);
+					  res = f_write(&MyFile, p, jpglen, (void *)&byteswritten);
+
+					  // printf("jpg_size :  %d \r\n" , jpglen);
+					  //printf("jpgstart :  %d \r\n" , jpgstart);
+			  }
+
+              res = f_write(&MyFile, jpeg_data_buf, jpeg_buf_size, (void *)&byteswritten);
+
+
+
+              printf_dbg("f_write!\r\n");
+
+              if((byteswritten > 0) && (res == FR_OK))
+              {
+                /* Close the open text file */
+                f_close(&MyFile);
+                printf_dbg("f_close!\r\n");
+              }
+            }
+          }
+
+
+
+
+
+        HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)jpeg_data_buf, jpeg_buf_size/4);
 }
 
 /**
@@ -223,17 +295,6 @@ static void LCD_ImagePreparation(uint16_t x0, uint16_t y0, uint16_t xSize, uint1
   * @param  TransferSize: image size (in pixels)
   * @retval HAL status
   */
-static HAL_StatusTypeDef LCD_Write(uint32_t OrigAddress, uint32_t DestAddress, uint32_t TransferSize)
-{
-  /* Force 1 pixel per line and width in pixels x height in pixels   */
-  /* as number of lines to align DMA2D transfer to LCD configuration */
-  if (HAL_OK != HAL_DMA2D_Start_IT(&hdma2d, OrigAddress, DestAddress, 1, TransferSize))
-  {
-    return HAL_ERROR;
-  }
-
-  return HAL_OK;
-}
 
 
 /**
@@ -269,22 +330,12 @@ static void SD_Initialize(void)
   * @retval None
   */
 
-void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
-{
-	//printf_dbg("HAL_DCMI_FrameEventCallback\r\n");
-	LCD_ImagePreparation(0, 0, ST7789H2_LCD_PIXEL_WIDTH, ST7789H2_LCD_PIXEL_HEIGHT);
-
-	/* Write data (through DMA2D) */
-	hal_status = LCD_Write((uint32_t) (&pBuffer), (uint32_t)&(LCD_ADDR->REG), ST7789H2_LCD_PIXEL_WIDTH * ST7789H2_LCD_PIXEL_HEIGHT);
-	if(hal_status != HAL_OK)Error_Handler();
-}
 
 static void FS_FileOperations(void)
 {
   FRESULT res; /* FatFs function common result code */
-  uint32_t byteswritten, bytesread; /* File write/read counts */
-  uint8_t wtext[] = "stm32l496g_discovery : This is STM32 working with FatFs and uSD diskio driver"; /* File write buffer */
-  uint8_t rtext[100]; /* File read buffer */
+  uint32_t byteswritten; /* File write/read counts */
+
 
   /* Register the file system object to the FatFs module */
   if(f_mount(&SDFatFs, (TCHAR const*)SDPath, 0) == FR_OK)
@@ -304,46 +355,43 @@ static void FS_FileOperations(void)
     isCreated = 1;
 #endif
     /* Create and Open a new text file object with write access */
-    if(f_open(&MyFile, "STM32.TXT", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+    if(f_open(&MyFile, "STM32.jpeg", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
     {
       printf_dbg("f_open!\r\n");
       /* Write data to the text file */
-      res = f_write(&MyFile, wtext, sizeof(wtext), (void *)&byteswritten);
-
+      res = f_write(&MyFile, jpeg_data_buf, jpeg_buf_size, (void *)&byteswritten);
+      printf_dbg("f_write!\r\n");
       if((byteswritten > 0) && (res == FR_OK))
       {
         /* Close the open text file */
         f_close(&MyFile);
         printf_dbg("f_close!\r\n");
-
-        /* Open the text file object with read access */
-        if(f_open(&MyFile, "STM32.TXT", FA_READ) == FR_OK)
-        {
-          printf_dbg("f_open!\r\n");
-          /* Read data from the text file */
-          res = f_read(&MyFile, rtext, sizeof(rtext), (void *)&bytesread);
-
-          if((bytesread > 0) && (res == FR_OK))
-          {
-            /* Close the open text file */
-            f_close(&MyFile);
-		    printf_dbg("f_close!\r\n");
-
-            /* Compare read data with the expected data */
-            if((bytesread == byteswritten))
-            {
-              /* Success of the demo: no error occurrence */
-            	printf_dbg("Operation end!\r\n");
-              return;
-            }
-          }
-        }
+        return;
       }
     }
   }
   /* Error */
   Error_Handler();
 }
+
+void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
+{
+	printf_dbg("HAL_DCMI_FrameEventCallback\r\n");
+
+	//FS_FileOperations();
+
+	jpeg_dcmi_frame_callback(&hdma_dcmi);
+	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);   // OFF
+	__HAL_DCMI_DISABLE_IT(hdcmi, DCMI_IT_FRAME|DCMI_IT_OVR|DCMI_IT_ERR|DCMI_IT_VSYNC|DCMI_IT_LINE);
+
+	//LCD_ImagePreparation(0, 0, ST7789H2_LCD_PIXEL_WIDTH, ST7789H2_LCD_PIXEL_HEIGHT);
+
+
+	/* Write data (through DMA2D) */
+	//hal_status = LCD_Write((uint32_t) (&pBuffer), (uint32_t)&(LCD_ADDR->REG), ST7789H2_LCD_PIXEL_WIDTH * ST7789H2_LCD_PIXEL_HEIGHT);
+	//if(hal_status != HAL_OK)Error_Handler();
+}
+
 
 /* USER CODE END 0 */
 
@@ -378,7 +426,7 @@ int main(void)
   MX_DCMI_Init();
   MX_DMA_Init();
   MX_USART2_UART_Init();
-  MX_DMA2D_Init();
+  //MX_DMA2D_Init();
   MX_FMC_Init();
   MX_SDMMC1_SD_Init();
   //MX_FATFS_Init();
@@ -396,8 +444,8 @@ int main(void)
   if(ret == IO_OK)  printf_dbg("Expander OK\r\n");
 
   /* LCD initialization */
-  ret =BSP_LCD_Init();
-  if(ret == LCD_OK) printf_dbg("LCD OK\r\n");
+  //ret =BSP_LCD_Init();
+  //if(ret == LCD_OK) printf_dbg("LCD OK\r\n");
 
   BSP_CAMERA_Init(RESOLUTION_R320x240);
   if(ret == CAMERA_OK) printf_dbg("Camera OK\r\n");
@@ -408,8 +456,8 @@ int main(void)
     /*##-4- Camera Continuous capture start in QVGA resolution ############################*/
     /* Disable unwanted HSYNC (IT_LINE)/VSYNC interrupts */
   __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC);
-
-  hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS,  (uint32_t)pBuffer , (ST7789H2_LCD_PIXEL_WIDTH*ST7789H2_LCD_PIXEL_HEIGHT)/2 );
+  __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_FRAME|DCMI_IT_OVR|DCMI_IT_ERR|DCMI_IT_VSYNC|DCMI_IT_LINE);
+  hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)jpeg_data_buf, jpeg_buf_size/4 );
   if(hal_status != HAL_OK)Error_Handler();
 
     /* 1- Link the micro SD disk I/O driver */
@@ -443,23 +491,28 @@ int main(void)
 		  switch (IRQ_event) {
 			case GPIO_PIN_8:
 				printf_dbg("JOY_UP was pressed!\r\n");
-				  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);   // ON
+				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);   // ON
+				//BSP_LCD_DisplayOn();
 				break;
 			case GPIO_PIN_9:
 				printf_dbg("JOY_LEFT was pressed!\r\n");
-				BSP_CAMERA_Suspend();
+				BSP_CAMERA_Resume();
 				break;
 			case GPIO_PIN_10:
 				printf_dbg("JOY_DOWN was pressed!\r\n");
 				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);   // OFF
+				//BSP_LCD_DisplayOff();
 				break;
 			case GPIO_PIN_11:
 				printf_dbg("JOY_RIGHT was pressed!\r\n");
-				BSP_CAMERA_Resume();
+				BSP_CAMERA_Suspend();
 				break;
 			case GPIO_PIN_13:
 				printf_dbg("JOY_SEL was pressed!\r\n");
-				FS_FileOperations();
+				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);   // ON
+				__HAL_DCMI_ENABLE_IT(&hdcmi, DCMI_IT_FRAME|DCMI_IT_OVR|DCMI_IT_ERR|DCMI_IT_VSYNC|DCMI_IT_LINE);
+
+				//FS_FileOperations();
 				break;
 			default:
 				break;
