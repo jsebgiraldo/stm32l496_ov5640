@@ -118,8 +118,6 @@ static uint16_t xQueue_IRQ_buffer[XQUEUE_BUFFER_SIZE];
 #define   jpeg_buf_size     31*1024
 uint32_t  jpeg_data_buf[jpeg_buf_size];
 
-uint8_t jpeg_data_encode[jpeg_buf_size];
-
 uint16_t pBuffer[240 * 240];
 
 
@@ -147,7 +145,6 @@ static void MX_GPIO_Init(void);
 static void MX_DCMI_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_DMA2D_Init(void);
 static void MX_FMC_Init(void);
 static void MX_SDMMC1_SD_Init(void);
 static void MX_NVIC_Init(void);
@@ -279,10 +276,6 @@ void jpeg_dcmi_frame_callback(DMA_HandleTypeDef *_hdma)
             }
           }
 
-
-
-
-
         HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)jpeg_data_buf, jpeg_buf_size/4);
 }
 
@@ -324,72 +317,16 @@ static void SD_Initialize(void)
   }
 }
 
-/**
-  * @brief  Frame Event callback.
-  * @param  None
-  * @retval None
-  */
-
-
-static void FS_FileOperations(void)
-{
-  FRESULT res; /* FatFs function common result code */
-  uint32_t byteswritten; /* File write/read counts */
-
-
-  /* Register the file system object to the FatFs module */
-  if(f_mount(&SDFatFs, (TCHAR const*)SDPath, 0) == FR_OK)
-  {
-	printf_dbg("f_mount!\r\n");
-#if 1
-    if (isCreated == 0)
-    {
-      res = f_mkfs(SDPath, FM_ANY, 0, workBuffer, sizeof(workBuffer));
-
-      if (res != FR_OK)
-      {
-        Error_Handler();
-        while(1);
-      }
-    }
-    isCreated = 1;
-#endif
-    /* Create and Open a new text file object with write access */
-    if(f_open(&MyFile, "STM32.jpeg", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
-    {
-      printf_dbg("f_open!\r\n");
-      /* Write data to the text file */
-      res = f_write(&MyFile, jpeg_data_buf, jpeg_buf_size, (void *)&byteswritten);
-      printf_dbg("f_write!\r\n");
-      if((byteswritten > 0) && (res == FR_OK))
-      {
-        /* Close the open text file */
-        f_close(&MyFile);
-        printf_dbg("f_close!\r\n");
-        return;
-      }
-    }
-  }
-  /* Error */
-  Error_Handler();
-}
-
 void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
 	printf_dbg("HAL_DCMI_FrameEventCallback\r\n");
 
-	//FS_FileOperations();
 
 	jpeg_dcmi_frame_callback(&hdma_dcmi);
 	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);   // OFF
+
 	__HAL_DCMI_DISABLE_IT(hdcmi, DCMI_IT_FRAME|DCMI_IT_OVR|DCMI_IT_ERR|DCMI_IT_VSYNC|DCMI_IT_LINE);
 
-	//LCD_ImagePreparation(0, 0, ST7789H2_LCD_PIXEL_WIDTH, ST7789H2_LCD_PIXEL_HEIGHT);
-
-
-	/* Write data (through DMA2D) */
-	//hal_status = LCD_Write((uint32_t) (&pBuffer), (uint32_t)&(LCD_ADDR->REG), ST7789H2_LCD_PIXEL_WIDTH * ST7789H2_LCD_PIXEL_HEIGHT);
-	//if(hal_status != HAL_OK)Error_Handler();
 }
 
 
@@ -443,9 +380,6 @@ int main(void)
   ret = BSP_IO_Init();
   if(ret == IO_OK)  printf_dbg("Expander OK\r\n");
 
-  /* LCD initialization */
-  //ret =BSP_LCD_Init();
-  //if(ret == LCD_OK) printf_dbg("LCD OK\r\n");
 
   BSP_CAMERA_Init(RESOLUTION_R320x240);
   if(ret == CAMERA_OK) printf_dbg("Camera OK\r\n");
@@ -453,25 +387,22 @@ int main(void)
   /* Wait 1s to let auto-loops in the camera module converge and lead to correct exposure */
   HAL_Delay(1000);
 
-    /*##-4- Camera Continuous capture start in QVGA resolution ############################*/
-    /* Disable unwanted HSYNC (IT_LINE)/VSYNC interrupts */
   __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC);
   __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_FRAME|DCMI_IT_OVR|DCMI_IT_ERR|DCMI_IT_VSYNC|DCMI_IT_LINE);
+
   hal_status = HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)jpeg_data_buf, jpeg_buf_size/4 );
   if(hal_status != HAL_OK)Error_Handler();
 
-    /* 1- Link the micro SD disk I/O driver */
+
   if(FATFS_LinkDriver(&SD_Driver, SDPath) == 0)
   {
-	/*##-2- Init the SD Card #################################################*/
-
 	SD_Initialize();
 
 	if(BSP_SD_IsDetected())
 	{
-		//Appli_state = APPLICATION_RUNNING;
 		printf_dbg("SD Card OK\r\n");
 	}
+
    }
 
   /* USER CODE END 2 */
@@ -492,27 +423,29 @@ int main(void)
 			case GPIO_PIN_8:
 				printf_dbg("JOY_UP was pressed!\r\n");
 				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);   // ON
-				//BSP_LCD_DisplayOn();
+
 				break;
 			case GPIO_PIN_9:
 				printf_dbg("JOY_LEFT was pressed!\r\n");
-				BSP_CAMERA_Resume();
+
 				break;
 			case GPIO_PIN_10:
 				printf_dbg("JOY_DOWN was pressed!\r\n");
 				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);   // OFF
-				//BSP_LCD_DisplayOff();
+
 				break;
 			case GPIO_PIN_11:
 				printf_dbg("JOY_RIGHT was pressed!\r\n");
-				BSP_CAMERA_Suspend();
+
+
 				break;
 			case GPIO_PIN_13:
 				printf_dbg("JOY_SEL was pressed!\r\n");
+
 				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);   // ON
+
 				__HAL_DCMI_ENABLE_IT(&hdcmi, DCMI_IT_FRAME|DCMI_IT_OVR|DCMI_IT_ERR|DCMI_IT_VSYNC|DCMI_IT_LINE);
 
-				//FS_FileOperations();
 				break;
 			default:
 				break;
@@ -631,44 +564,6 @@ static void MX_DCMI_Init(void)
 
 }
 
-/**
-  * @brief DMA2D Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_DMA2D_Init(void)
-{
-
-  /* USER CODE BEGIN DMA2D_Init 0 */
-
-  /* USER CODE END DMA2D_Init 0 */
-
-  /* USER CODE BEGIN DMA2D_Init 1 */
-
-  /* USER CODE END DMA2D_Init 1 */
-  hdma2d.Instance = DMA2D;
-  hdma2d.Init.Mode = DMA2D_M2M;
-  hdma2d.Init.ColorMode = DMA2D_OUTPUT_RGB565;
-  hdma2d.Init.OutputOffset = 0;
-  hdma2d.LayerCfg[1].InputOffset = 0;
-  hdma2d.LayerCfg[1].InputColorMode = DMA2D_INPUT_RGB565;
-  hdma2d.LayerCfg[1].AlphaMode = DMA2D_NO_MODIF_ALPHA;
-  hdma2d.LayerCfg[1].InputAlpha = 0xFF;
-  hdma2d.LayerCfg[1].AlphaInverted = DMA2D_REGULAR_ALPHA;
-  hdma2d.LayerCfg[1].RedBlueSwap = DMA2D_RB_REGULAR;
-  if (HAL_DMA2D_Init(&hdma2d) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_DMA2D_ConfigLayer(&hdma2d, 1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN DMA2D_Init 2 */
-
-  /* USER CODE END DMA2D_Init 2 */
-
-}
 
 /**
   * @brief SDMMC1 Initialization Function
