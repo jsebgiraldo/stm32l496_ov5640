@@ -269,14 +269,14 @@ int main(void)
   /* Initialize the IO functionalities */
   uint8_t ret;
   ret = BSP_IO_Init();
-  if(ret == IO_OK)  printf_dbg("Expander OK\r\n");
+  if(ret != IO_OK)  printf_dbg("Expander Error!!\r\n");
 
   /* LCD initialization */
   ret =BSP_LCD_Init();
-  if(ret == LCD_OK) printf_dbg("LCD OK\r\n");
+  if(ret != LCD_OK) printf_dbg("LCD Error!!\r\n");
 
   BSP_CAMERA_Init(RESOLUTION_R320x240);
-  if(ret == CAMERA_OK) printf_dbg("Camera OK\r\n");
+  if(ret != CAMERA_OK) printf_dbg("Camera Error!\r\n");
 
   /* Wait 1s to let auto-loops in the camera module converge and lead to correct exposure */
     HAL_Delay(1000);
@@ -308,21 +308,25 @@ int main(void)
 			case GPIO_PIN_8:
 				printf_dbg("JOY_UP was pressed!\r\n");
 				  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);   // ON
+				  BSP_LCD_DisplayOn();
 				break;
 			case GPIO_PIN_9:
 				printf_dbg("JOY_LEFT was pressed!\r\n");
-				BSP_CAMERA_Suspend();
+				BSP_CAMERA_Resume();
 				break;
 			case GPIO_PIN_10:
 				printf_dbg("JOY_DOWN was pressed!\r\n");
 				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);   // OFF
+				BSP_LCD_DisplayOff();
 				break;
 			case GPIO_PIN_11:
 				printf_dbg("JOY_RIGHT was pressed!\r\n");
-				BSP_CAMERA_Resume();
+				BSP_CAMERA_Suspend();
 				break;
 			case GPIO_PIN_13:
 				printf_dbg("JOY_SEL was pressed!\r\n");
+				BSP_CAMERA_Resume();
+				BSP_LCD_DisplayOn();
 				break;
 			default:
 				break;
