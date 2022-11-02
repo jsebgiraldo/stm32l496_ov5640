@@ -1,5 +1,5 @@
 | Supported Targets | STM32L496G-DISCO |
-| ----------------- | ----- -----------| 
+| ----------------- | -----------------| 
 
 # B-CMAS-OMV in STM32L496G-DISCO
 
